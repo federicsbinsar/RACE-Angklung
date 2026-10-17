@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lomba Lari Angklung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Nunito+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: layar dibagi dua. Tiap kelompok punya lintasan di atas (lari ke atas menuju garis finis) dan panel soal di bawah. */
+:root{
+  --bg:#0c1d22;
+  --ink:#f5f0e4;
+  --muted:#a4babc;
+  --t1:#f2b134;
+  --t2:#3fc1c9;
+  --ok:#7bd88f;
+  --bad:#ff7a66;
+  --panel:rgba(9,22,26,.9);
+  --display:"Bricolage Grotesque","Trebuchet MS",system-ui,sans-serif;
+  --body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.stage{position:relative;height:100dvh;width:100%;overflow:hidden}
+#game{position:absolute;inset:0;z-index:1}
+
+.hud{position:absolute;left:0;right:0;top:0;z-index:3;padding:max(10px,env(safe-area-inset-top)) 14px 0;display:flex;gap:10px;align-items:flex-start;pointer-events:none}
+.tb{flex:1;background:var(--panel);border:3px solid;border-radius:12px;padding:6px 14px;min-width:0}
+.tb.t1{border-color:var(--t1)} .tb.t2{border-color:var(--t2)}
+.tb .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.tb span{font-family:var(--display);font-weight:800;font-size:clamp(16px,2vw,28px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb em{font-style:normal;font-weight:800;font-size:clamp(14px,1.6vw,22px);color:var(--muted)}
+.tb.t1 span{color:var(--t1)} .tb.t2 span{color:var(--t2)}
+.pg{height:8px;background:rgba(245,240,228,.16);border-radius:5px;overflow:hidden;margin-top:4px}
+.pg i{display:block;height:100%;width:0;transition:width .3s}
+.t1 .pg i{background:var(--t1)} .t2 .pg i{background:var(--t2)}
+.center{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto}
+#clock{background:var(--panel);border-radius:12px;padding:6px 14px;font-family:var(--display);font-weight:800;font-size:clamp(20px,2.6vw,36px);font-variant-numeric:tabular-nums;min-width:96px;text-align:center}
+.gear{width:38px;height:38px;border-radius:50%;background:var(--panel);border:1px solid rgba(245,240,228,.35);font-size:18px}
+
+.qa{position:absolute;bottom:0;top:56%;width:50%;z-index:3;padding:10px clamp(12px,2.4vw,36px) max(10px,env(safe-area-inset-bottom));
+  background:var(--panel);display:flex;flex-direction:column;gap:8px;border-top:5px solid;overflow:auto}
+.qa.t1{left:0;border-top-color:var(--t1)} .qa.t2{right:0;border-top-color:var(--t2);border-left:2px dashed rgba(245,240,228,.4)}
+.qa h2{margin:0;font-family:var(--display);font-weight:600;font-size:clamp(17px,2vw,30px);line-height:1.2;text-wrap:balance}
+.qa .opts{display:grid;gap:6px}
+.opt{display:flex;align-items:center;gap:12px;text-align:left;background:rgba(245,240,228,.1);border:2px solid rgba(245,240,228,.35);border-radius:12px;padding:7px 12px;font-weight:800;font-size:clamp(15px,1.6vw,24px);min-height:44px}
+.opt:hover:not(:disabled){background:rgba(245,240,228,.2)}
+.opt:disabled{opacity:.4;cursor:not-allowed}
+.opt .k{flex:none;width:2em;height:2em;border-radius:50%;display:grid;place-items:center;font-family:var(--display);color:#1b2a2e}
+.t1 .opt .k{background:var(--t1)} .t2 .opt .k{background:var(--t2)}
+.opt.bad{border-color:var(--bad);text-decoration:line-through}
+.msg{font-size:clamp(15px,1.7vw,24px);line-height:1.35;color:var(--ink)}
+.msg strong{font-family:var(--display)}
+.msg.good strong{color:var(--ok)} .msg.wrong strong{color:var(--bad)}
+.msg.dim{color:var(--muted)}
+.wait{margin:auto 0;text-align:center;font-family:var(--display);font-weight:800;font-size:clamp(22px,3vw,40px);color:var(--muted)}
+
+#count{position:absolute;inset:0;z-index:4;display:grid;place-items:center;pointer-events:none;
+  font-family:var(--display);font-weight:800;font-size:clamp(90px,22vw,300px);color:var(--ink);text-shadow:0 6px 40px rgba(0,0,0,.7)}
+
+.overlay{position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:20px;overflow:auto;
+  background:radial-gradient(100% 80% at 50% 20%,rgba(23,53,59,.97),rgba(8,18,21,.98))}
+.card{max-width:760px;text-align:center;display:flex;flex-direction:column;gap:16px;align-items:center}
+.card h1{font-family:var(--display);font-weight:800;font-size:clamp(32px,5.6vw,66px);line-height:1;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--muted);font-size:clamp(15px,1.9vw,21px);line-height:1.45;max-width:60ch}
+.names{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%}
+.names label{display:flex;flex-direction:column;gap:4px;text-align:left;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;flex:1 1 200px}
+.names input{font:inherit;font-size:18px;font-weight:700;padding:10px 12px;border-radius:10px;border:3px solid;background:rgba(245,240,228,.08);color:var(--ink)}
+.names label.t1 input{border-color:var(--t1)} .names label.t2 input{border-color:var(--t2)}
+.btn{background:rgba(245,240,228,.14);border:1px solid rgba(245,240,228,.38);padding:12px 22px;border-radius:10px;font-weight:700;font-size:16px}
+.btn:hover{background:rgba(245,240,228,.24)}
+.btn.main{background:var(--t1);color:#241a02;border-color:var(--t1)}
+.btn.main:hover{background:#ffc552}
+.res{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;width:100%}
+.res div{flex:1 1 220px;background:rgba(245,240,228,.07);border:3px solid;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:4px;font-weight:700}
+.res .r1{border-color:var(--t1)} .res .r2{border-color:var(--t2)}
+.res b{font-family:var(--display);font-size:clamp(22px,3vw,38px)}
+.res .r1 b{color:var(--t1)} .res .r2 b{color:var(--t2)}
+.res .big{font-family:var(--display);font-size:clamp(34px,5vw,64px);font-weight:800}
+
+.panel{position:absolute;left:50%;top:max(110px,12%);transform:translateX(-50%);z-index:5;width:260px;background:var(--panel);border:1px solid rgba(245,240,228,.3);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;font-size:14px}
+.panel label{display:flex;flex-direction:column;gap:4px}
+.panel label.inline{flex-direction:row;align-items:center;gap:8px}
+.panel select{width:100%;font:inherit;padding:4px}
+@media (max-width:760px){
+  .qa{top:60%}
+  .hud{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="stage">
+  <canvas id="game"></canvas>
+
+  <div class="hud">
+    <div class="tb t1"><div class="row"><span id="n1">Kelompok 1</span><em id="c1">0/8</em></div><div class="pg"><i id="p1"></i></div></div>
+    <div class="center"><div id="clock">0:00</div><button class="gear" id="gear" type="button" aria-label="Pengaturan guru" aria-expanded="false">⚙</button></div>
+    <div class="tb t2"><div class="row"><span id="n2">Kelompok 2</span><em id="c2">0/8</em></div><div class="pg"><i id="p2"></i></div></div>
+  </div>
+
+  <section class="qa t1" id="qa1" aria-live="polite"></section>
+  <section class="qa t2" id="qa2" aria-live="polite"></section>
+  <div id="count" hidden></div>
+
+  <div class="panel" id="panel" hidden>
+    <strong>Panel Guru</strong>
+    <label>Jumlah rintangan
+      <select id="hurdles"><option>5</option><option selected>8</option><option>10</option></select>
+    </label>
+    <label class="inline"><input type="checkbox" id="snd" checked> Suara efek</label>
+    <span style="color:var(--muted)">Papan ketik: kelompok kiri A S D, kelompok kanan J K L. Perubahan jumlah rintangan berlaku pada lomba berikutnya.</span>
+    <button class="btn" id="restart" type="button">Mulai Ulang Lomba</button>
+  </div>
+
+  <div class="overlay" id="intro">
+    <div class="card">
+      <h1>Lomba Lari Angklung</h1>
+      <p>Dua kelompok berlomba lari menuju garis finis. Di setiap rintangan, pelari berhenti dan kelompok harus menjawab soal. Jawaban benar membuat pelari melompat. Jawaban salah membuat pelari tersandung dan kehilangan waktu. Siapa yang sampai finis lebih dulu, menang!</p>
+      <div class="names">
+        <label class="t1">Kelompok kiri<input id="t1name" maxlength="16" value="Kelompok 1"></label>
+        <label class="t2">Kelompok kanan<input id="t2name" maxlength="16" value="Kelompok 2"></label>
+      </div>
+      <button class="btn main" id="start" type="button">Mulai Lomba</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="end" hidden>
+    <div class="card">
+      <h1 id="endTitle">Lomba Selesai!</h1>
+      <div class="res" id="endRes"></div>
+      <button class="btn main" id="again" type="button">Lomba Lagi</button>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===== BANK SOAL: guru dapat mengubah isi di sini =====
+   q: pertanyaan, o: tiga pilihan jawaban, c: indeks jawaban benar (0-2), e: penjelasan singkat.
+   Tiap kelompok mendapat urutan soal yang diacak, jumlahnya sesuai jumlah rintangan (maksimal sebanyak soal di bank). */
+const QUESTIONS = [
+  {q:"Jenis bambu yang umum dipakai untuk membuat angklung adalah...", o:["Kayu jati dan mahoni","Awi wulung dan awi temen","Besi dan seng"], c:1,
+   e:"Angklung dibuat dari bambu hitam (awi wulung) atau bambu awi temen."},
+  {q:"Bagian angklung yang menghasilkan bunyi adalah...", o:["Rotan pengikat","Tangan pemain","Tabung bambu"], c:2,
+   e:"Bunyi angklung berasal dari tabung-tabung bambu yang beradu saat digoyangkan."},
+  {q:"Satu buah angklung terdiri dari berapa tabung bambu?", o:["2 sampai 4 tabung","10 tabung","Tidak ada tabung"], c:0,
+   e:"Satu angklung terdiri dari 2 sampai 4 tabung bambu dengan ukuran berbeda."},
+  {q:"Ukuran tabung yang berbeda pada angklung menentukan...", o:["Warna angklung","Nada yang dihasilkan","Berat pemain"], c:1,
+   e:"Tiap tabung punya ukuran berbeda sehingga menghasilkan nada yang berbeda."},
+  {q:"Bahan yang dipakai untuk mengikat tabung pada angklung adalah...", o:["Besi","Plastik","Rotan"], c:2,
+   e:"Tabung-tabung bambu pada angklung diikat dengan rotan."},
+  {q:"Bagian angklung yang dipegang pemain saat dimainkan disebut...", o:["Kerangka","Tabung suara","Rotan"], c:0,
+   e:"Pemain memegang kerangka (rangka) angklung, lalu menggoyangkannya."},
+  {q:"Teknik kurulung (getar) dilakukan dengan cara...", o:["Disentak sekali","Digoyang berulang","Dipukul dengan stik"], c:1,
+   e:"Kurulung atau getar: angklung digoyangkan ke kiri dan ke kanan berulang-ulang sehingga bunyi bersambung."},
+  {q:"Teknik centok (sentak) menghasilkan bunyi yang...", o:["Bersambung panjang","Sekali dan singkat","Tidak berbunyi"], c:1,
+   e:"Centok atau sentak: jari menarik tabung dengan cepat ke arah telapak tangan sehingga bunyinya hanya sekali dan singkat."},
+  {q:"Pada teknik tengkep, salah satu tabung...", o:["Dipukul keras","Dilepas dari rangka","Ditahan jari agar tidak ikut bergetar"], c:2,
+   e:"Tengkep mirip kurulung, tetapi satu tabung ditahan dengan jari sehingga tidak ikut bergetar."},
+  {q:"Bunyi angklung terjadi karena...", o:["Tabung beradu saat digoyang","Udara ditiup ke tabung","Senar dipetik"], c:0,
+   e:"Saat angklung digoyangkan, tabung beradu dengan bilah bambu pada rangka dan menghasilkan bunyi."},
+  {q:"Angklung Padaeng ciptaan Daeng Soetigna memakai tangga nada...", o:["Pentatonis","Diatonis","Tanpa tangga nada"], c:1,
+   e:"Daeng Soetigna membuat angklung bertangga nada diatonis, sehingga dapat dimainkan bersama alat musik Barat."},
+  {q:"Dalam permainan angklung bersama, setiap pemain biasanya memegang...", o:["Seluruh angklung","Tidak membawa angklung","Satu sampai empat angklung"], c:2,
+   e:"Setiap pemain memegang satu sampai empat angklung dengan nada berbeda, lalu memainkannya sesuai bagiannya."}
+];
+
+const COLORS = ["#f2b134", "#3fc1c9"];
+const LEG_SPEED = 0.62;      // lintasan per detik saat berlari
+const STOP_GAP = 0.33;       // jarak berhenti sebelum rintangan
+const JUMP_TIME = 0.7, JUMP_DIST = STOP_GAP*2;
+const STUMBLE_TIME = 1.5;
+const $ = s => document.querySelector(s);
+const cv = $("#game"), g = cv.getContext("2d");
+let W = 0, H = 0;
+const S = {phase:"intro", N:8, sound:true, t:0, clock:0, winner:-1, endTimer:null,
+           teams:[0,1].map(() => ({name:"", qs:[], k:0, pos:0, state:"idle", stateT:0, wrong:new Set(), msg:"", msgKind:"", correct:0, mistakes:0, boost:0, waitStart:0, finishTime:0}))};
+
+/* ===== Suara ===== */
+let ac;
+function tone(f, d, type, delay){
+  if (!S.sound) return;
+  try{
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), gn = ac.createGain(), t0 = ac.currentTime + (delay||0);
+    o.type = type || "sine"; o.frequency.value = f;
+    gn.gain.setValueAtTime(.0001, t0);
+    gn.gain.exponentialRampToValueAtTime(.18, t0+.02);
+    gn.gain.exponentialRampToValueAtTime(.0001, t0+d);
+    o.connect(gn); gn.connect(ac.destination);
+    o.start(t0); o.stop(t0+d+.03);
+  }catch(e){}
+}
+const sndOk = () => { tone(523.25,.15,"triangle",0); tone(659.25,.15,"triangle",.1); tone(783.99,.28,"triangle",.2); };
+const sndBad = () => tone(170,.35,"sawtooth",0);
+const sndWin = () => [523.25,659.25,783.99,1046.5].forEach((f,k) => tone(f,.3,"triangle",k*.15));
+
+/* ===== Geometri ===== */
+function resize(){
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  cv.style.width = W+"px"; cv.style.height = H+"px";
+  g.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize", resize);
+function geo(i){
+  const half = W/2, pad = Math.max(20, W*.03);
+  const top = H*0.15, bot = H*(W < 760 ? .58 : .545);
+  const left = i*half + pad, w = half - 2*pad;
+  return {left, w, top, bot, h:bot-top, runnerY: top + (bot-top)*.68, u: Math.max(13, Math.min(30, w*.055)), D: (bot-top)*.95};
+}
+
+/* ===== Alur lomba ===== */
+const esc = t => t.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function shuffle(a){ for (let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+function fmt(t){ const m = Math.floor(t/60), s = Math.floor(t%60); return m+":"+String(s).padStart(2,"0"); }
+
+function startRace(){
+  clearTimeout(S.endTimer);
+  S.N = Math.min(+$("#hurdles").value, QUESTIONS.length);
+  S.teams.forEach((T,i) => {
+    T.name = ($("#t"+(i+1)+"name").value.trim() || "Kelompok "+(i+1));
+    T.qs = shuffle(QUESTIONS.map((_,k) => k)).slice(0, S.N);
+    Object.assign(T, {k:0, pos:0, state:"idle", stateT:0, msg:"", msgKind:"", correct:0, mistakes:0, boost:0, finishTime:0});
+    T.wrong = new Set();
+    $("#n"+(i+1)).textContent = T.name;
+  });
+  S.winner = -1; S.clock = 0;
+  $("#clock").textContent = "0:00";
+  $("#intro").hidden = true; $("#end").hidden = true; $("#panel").hidden = true;
+  S.phase = "countdown";
+  updateHud(); renderPanel(0); renderPanel(1);
+  const seq = ["3","2","1","Lari!"]; let n = 0;
+  const cnt = $("#count"); cnt.hidden = false;
+  const step = () => {
+    if (S.phase !== "countdown") { cnt.hidden = true; return; }
+    cnt.textContent = seq[n]; tone(n < 3 ? 440 : 880, .2, "square", 0);
+    n++;
+    if (n < seq.length) setTimeout(step, 800);
+    else setTimeout(() => {
+      cnt.hidden = true;
+      if (S.phase !== "countdown") return;
+      S.phase = "race";
+      S.teams.forEach((T,i) => { T.state = "run"; renderPanel(i); });
+    }, 700);
+  };
+  step();
+}
+function updateHud(){
+  S.teams.forEach((T,i) => {
+    $("#c"+(i+1)).textContent = T.k + "/" + S.N;
+    $("#p"+(i+1)).style.width = Math.min(100, T.pos/(S.N+.8)*100) + "%";
+  });
+}
+function curQ(T){ return QUESTIONS[T.qs[T.k]]; }
+function renderPanel(i){
+  const T = S.teams[i], el = $("#qa"+(i+1)); let h = "";
+  if (S.phase === "countdown" || T.state === "idle"){
+    h = '<div class="wait">Bersiap di garis start...</div>';
+  } else if (T.state === "finished"){
+    h = '<div class="wait">Sampai di garis finis!</div>';
+  } else if (T.state === "wait" || T.state === "stumble"){
+    const q = curQ(T), locked = T.state === "stumble";
+    h = "<h2>" + esc(q.q) + "</h2><div class=\"opts\">" +
+      q.o.map((o,k) => '<button class="opt' + (T.wrong.has(k) ? " bad" : "") + '" data-o="' + k + '"' + (locked || T.wrong.has(k) ? " disabled" : "") + '><span class="k">' + "ABC"[k] + "</span>" + esc(o) + "</button>").join("") + "</div>";
+    if (T.msg) h += '<div class="msg ' + T.msgKind + '">' + T.msg + "</div>";
+  } else {
+    h = T.msg ? '<div class="msg ' + T.msgKind + " " + (T.state === "run" ? "dim" : "") + '">' + T.msg + "</div>" : "";
+    h += '<div class="wait">' + (T.state === "jump" ? "Lompat!" : "Lari terus...") + "</div>";
+  }
+  el.innerHTML = h;
+}
+function answer(i, o){
+  if (S.phase !== "race") return;
+  const T = S.teams[i];
+  if (T.state !== "wait" || T.wrong.has(o)) return;
+  const q = curQ(T);
+  if (o === q.c){
+    T.correct++; T.state = "jump"; T.stateT = 0;
+    T.boost = (S.t - T.waitStart) < 4 ? 1.5 : 0;
+    T.msg = "<strong>Benar!</strong> " + esc(q.e) + (T.boost ? " Jawab cepat, pelari dapat dorongan tenaga!" : "");
+    T.msgKind = "good"; sndOk();
+  } else {
+    T.mistakes++; T.wrong.add(o); T.state = "stumble"; T.stateT = 0;
+    T.msg = "<strong>Salah!</strong> Pelari tersandung. Tunggu sebentar."; T.msgKind = "wrong"; sndBad();
+  }
+  renderPanel(i);
+}
+function finishRace(i){
+  const T = S.teams[i];
+  S.phase = "ending"; S.winner = i; T.finishTime = S.clock; sndWin();
+  S.teams.forEach((x,j) => { if (j !== i && x.state !== "finished") renderPanel(j); });
+  S.endTimer = setTimeout(showEnd, 1300);
+}
+function showEnd(){
+  S.phase = "end";
+  const w = S.teams[S.winner];
+  $("#endTitle").textContent = "Pemenang: " + w.name + "!";
+  $("#endRes").innerHTML = S.teams.map((T,i) =>
+    '<div class="r' + (i+1) + '"><b>' + esc(T.name) + "</b>" +
+    (i === S.winner ? '<span class="big">' + fmt(T.finishTime) + "</span>" : "<span>Sampai rintangan " + T.k + " dari " + S.N + "</span>") +
+    "<span>Jawaban benar: " + T.correct + "</span><span>Jawaban salah: " + T.mistakes + "</span></div>").join("");
+  $("#end").hidden = false;
+}
+
+/* ===== Gerak ===== */
+function update(dt){
+  S.t += dt;
+  if (S.phase === "race"){
+    S.clock += dt; $("#clock").textContent = fmt(S.clock);
+    S.teams.forEach((T,i) => {
+      if (S.phase !== "race" || T.state === "finished") return;
+      if (T.boost > 0) T.boost = Math.max(0, T.boost - dt);
+      const sp = LEG_SPEED * (T.boost > 0 ? 1.55 : 1);
+      if (T.state === "run"){
+        if (T.k < S.N){
+          T.pos += sp*dt;
+          const stop = (T.k+1) - STOP_GAP;
+          if (T.pos >= stop){ T.pos = stop; T.state = "wait"; T.waitStart = S.t; T.wrong = new Set(); T.msg = ""; T.msgKind = ""; renderPanel(i); }
+        } else {
+          T.pos += sp*dt;
+          if (T.pos >= S.N + .8){ T.pos = S.N + .8; T.state = "finished"; renderPanel(i); updateHud(); finishRace(i); }
+        }
+      } else if (T.state === "jump"){
+        T.stateT += dt; T.pos += (JUMP_DIST/JUMP_TIME)*dt;
+        if (T.stateT >= JUMP_TIME){ T.k++; T.pos = T.k + STOP_GAP; T.state = "run"; updateHud(); renderPanel(i); }
+      } else if (T.state === "stumble"){
+        T.stateT += dt;
+        if (T.stateT >= STUMBLE_TIME){ T.state = "wait"; T.msg = "<strong>Pilih lagi.</strong> Jawaban yang dicoret sudah salah."; T.msgKind = "wrong"; renderPanel(i); }
+      }
+    });
+    updateHud();
+  }
+}
+
+/* ===== Gambar ===== */
+function rr(x,y,w,h,r){
+  g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
+function drawHurdle(cx, sy, w, u, cleared){
+  const bw = w*.72;
+  g.save(); g.globalAlpha = cleared ? .75 : 1;
+  g.fillStyle = "#e9e3d3";
+  g.fillRect(cx-bw/2-u*.12, sy-u*.9, u*.24, u*.9); g.fillRect(cx+bw/2-u*.12, sy-u*.9, u*.24, u*.9);
+  const segs = 8, sw = bw/segs;
+  for (let k=0;k<segs;k++){ g.fillStyle = k%2 ? "#f5f0e4" : "#ff7a66"; g.fillRect(cx-bw/2+k*sw, sy-u*.85, sw+.5, u*.5); }
+  g.strokeStyle = "rgba(0,0,0,.35)"; g.lineWidth = 1.5; g.strokeRect(cx-bw/2, sy-u*.85, bw, u*.5);
+  g.restore();
+}
+function drawFinish(cx, sy, w, u){
+  const cols = 14, sz = (w*.92)/cols, x0 = cx - cols*sz/2;
+  for (let r=0;r<3;r++) for (let c=0;c<cols;c++){ g.fillStyle = (r+c)%2 ? "#14262b" : "#f5f0e4"; g.fillRect(x0+c*sz, sy-sz*3+r*sz, sz+.5, sz+.5); }
+  g.fillStyle = "#f5f0e4"; g.font = "800 " + Math.round(u*.8) + "px 'Bricolage Grotesque',sans-serif"; g.textAlign = "center"; g.textBaseline = "bottom";
+  g.fillText("FINIS", cx, sy - sz*3 - 4);
+}
+function drawRunner(T, i, cx, cy, u){
+  const moving = T.state === "run" || T.state === "jump", ph = S.t*(T.boost > 0 ? 17 : 12);
+  const jh = T.state === "jump" ? Math.sin(Math.PI*Math.min(1, T.stateT/JUMP_TIME)) : 0;
+  const sw = moving ? Math.sin(ph)*u*.55 : 0, col = COLORS[i];
+  g.save();
+  g.fillStyle = "rgba(0,0,0,.32)"; g.beginPath(); g.ellipse(cx, cy+u*2.05, u*(1.1-.35*jh), u*.34, 0, 0, Math.PI*2); g.fill();
+  g.translate(cx, cy - jh*u*1.9);
+  if (T.state === "stumble") g.rotate(Math.sin(S.t*34)*.14);
+  if (T.boost > 0){ g.strokeStyle = "rgba(245,240,228,.55)"; g.lineWidth = 2; for (let k=-1;k<=1;k++){ g.beginPath(); g.moveTo(k*u*.9, u*2.2); g.lineTo(k*u*.9, u*3.4+Math.sin(S.t*20+k)*u*.3); g.stroke(); } }
+  g.fillStyle = "#26343e";
+  g.fillRect(-u*.75, u*.7 - sw, u*.6, u*1.35); g.fillRect(u*.15, u*.7 + sw, u*.6, u*1.35);
+  g.fillStyle = col;
+  g.fillRect(-u*1.3, -u*.7 + sw*.8, u*.5, u*1.4); g.fillRect(u*.8, -u*.7 - sw*.8, u*.5, u*1.4);
+  rr(-u*.85, -u*.95, u*1.7, u*1.95, u*.35); g.fill();
+  g.fillStyle = "rgba(255,255,255,.28)"; g.fillRect(-u*.1, -u*.8, u*.2, u*1.6);
+  g.fillStyle = "#e0b08a"; g.beginPath(); g.arc(0, -u*1.55, u*.68, 0, Math.PI*2); g.fill();
+  g.fillStyle = "#2a1d16"; g.beginPath(); g.arc(0, -u*1.62, u*.68, Math.PI*.95, Math.PI*2.05); g.lineTo(u*.68,-u*1.35); g.arc(0,-u*1.35,u*.68,0,Math.PI); g.closePath(); g.fill();
+  g.restore();
+  if (T.state === "stumble"){
+    g.save(); g.fillStyle = "#ff7a66"; g.font = "800 " + Math.round(u*1.2) + "px 'Bricolage Grotesque',sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("✗", cx + u*1.6, cy - u*1.5 - Math.abs(Math.sin(S.t*8))*u*.3); g.restore();
+  }
+}
+function drawLane(i){
+  const T = S.teams[i], L = geo(i), cx = L.left + L.w/2;
+  g.save();
+  g.beginPath(); g.rect(L.left, L.top, L.w, L.h); g.clip();
+  const gr = g.createLinearGradient(0, L.top, 0, L.bot);
+  gr.addColorStop(0, "#1c3a42"); gr.addColorStop(1, "#27505a");
+  g.fillStyle = gr; g.fillRect(L.left, L.top, L.w, L.h);
+  g.fillStyle = i ? "rgba(63,193,201,.1)" : "rgba(242,177,52,.1)"; g.fillRect(L.left, L.top, L.w, L.h);
+  const pos = T.state === "idle" ? 0 : T.pos, toY = p => L.runnerY - (p - pos)*L.D;
+  // garis birama
+  g.strokeStyle = "rgba(245,240,228,.22)"; g.lineWidth = 2;
+  for (let p = Math.floor((pos - 1)*4)/4; p < pos + 1.4; p += .25){
+    const y = toY(p); if (y < L.top-4 || y > L.bot+4) continue;
+    g.beginPath(); g.moveTo(L.left, y); g.lineTo(L.left+L.w, y); g.stroke();
+  }
+  // not di pinggir lintasan
+  g.fillStyle = "rgba(245,240,228,.14)"; g.font = "700 " + Math.round(L.u*1.5) + "px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  for (let p = Math.floor((pos - 1)*2)/2; p < pos + 1.4; p += .5){
+    const y = toY(p+.12); if (y < L.top-20 || y > L.bot+20) continue;
+    g.fillText(Math.round(p*2)%2 ? "♪" : "♫", L.left + (Math.round(p*2)%3 ? L.u*1.2 : L.w - L.u*1.2), y);
+  }
+  // tepi lintasan
+  g.fillStyle = COLORS[i]; g.fillRect(L.left, L.top, 4, L.h); g.fillRect(L.left+L.w-4, L.top, 4, L.h);
+  // rintangan dan finis
+  for (let k=0;k<S.N;k++){ const y = toY(k+1); if (y > L.top-L.u*2 && y < L.bot+L.u*2) drawHurdle(cx, y, L.w, L.u, T.k > k); }
+  const fy = toY(S.N + .8); if (fy > L.top-L.u*6 && fy < L.bot+L.u*3) drawFinish(cx, fy, L.w, L.u);
+  drawRunner(T, i, cx, L.runnerY, L.u);
+  g.restore();
+}
+function draw(){
+  const gr = g.createRadialGradient(W/2, 0, 0, W/2, 0, H*1.1);
+  gr.addColorStop(0, "#17353b"); gr.addColorStop(1, "#0c1d22");
+  g.fillStyle = gr; g.fillRect(0,0,W,H);
+  drawLane(0); drawLane(1);
+  g.save(); g.setLineDash([14,12]); g.lineWidth = 3; g.strokeStyle = "rgba(245,240,228,.5)";
+  g.beginPath(); g.moveTo(W/2, H*.14); g.lineTo(W/2, H*.56); g.stroke(); g.restore();
+}
+let last = 0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(.05, (ts-last)/1000 || 0); last = ts;
+  update(dt); draw();
+}
+
+/* ===== Peristiwa ===== */
+[0,1].forEach(i => $("#qa"+(i+1)).addEventListener("click", e => {
+  const b = e.target.closest("button[data-o]"); if (b) answer(i, +b.dataset.o);
+}));
+const KEYS = {a:[0,0], s:[0,1], d:[0,2], j:[1,0], k:[1,1], l:[1,2]};
+document.addEventListener("keydown", e => {
+  if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+  const m = KEYS[e.key.toLowerCase()]; if (m) answer(m[0], m[1]);
+});
+$("#start").onclick = startRace;
+$("#again").onclick = startRace;
+$("#restart").onclick = startRace;
+$("#gear").onclick = () => { const p = $("#panel"); p.hidden = !p.hidden; $("#gear").setAttribute("aria-expanded", String(!p.hidden)); };
+$("#snd").onchange = e => { S.sound = e.target.checked; };
+
+resize();
+renderPanel(0); renderPanel(1);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
